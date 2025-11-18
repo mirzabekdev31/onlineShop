@@ -1,13 +1,33 @@
 FROM php:8.3-fpm
 
-# MySQL PDO va mysqli drayverlarini o‘rnatish
-RUN docker-php-ext-install pdo pdo_mysql mysqli
+# System dependencies
+RUN apt-get update && apt-get install -y \
+    nginx unzip git curl libzip-dev libpng-dev libonig-dev libxml2-dev libicu-dev \
+    && docker-php-ext-install pdo pdo_mysql mysqli intl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# PHP intl extension (Number format uchun kerak)
-RUN apt-get update && apt-get install -y libicu-dev && docker-php-ext-install intl
-
-# Loyihaning ishchi katalogini belgilash
 WORKDIR /var/www
 
-# Loyiha fayllarini konteyner ichiga nusxalash
+# Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Project files
 COPY . .
+
+# Install dependencies
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Permissions
+RUN chmod -R 775 storage bootstrap/cache && \
+    chown -R www-data:www-data /var/www
+
+# Nginx config
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8080
+
+CMD ["/entrypoint.sh"]
